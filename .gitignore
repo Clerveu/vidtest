@@ -1,0 +1,25 @@
+# API keys
+.openrouter_key
+
+# Output directories (generated data)
+Outputs/
+Source/
+descriptions/
+subtitles/
+results/
+
+# Debug/temp files
+last_response.json
+temp_subtitles.srt
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.vscode/
+.idea/
+
+# Claude Code
+.claude/
