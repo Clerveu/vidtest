@@ -12,6 +12,7 @@ All-in-one pipeline that converts video files into structured text descriptions 
 4. **Process each chunk** through Qwen 397B via OpenRouter — sends video + matching subtitles, gets back ~200 word visual descriptions
 5. **Combine outputs** — merges subtitle chunks + descriptions into `[DIALOGUE]` + `[VISUAL DESCRIPTION]` sections
 6. **Generate results** — individual chunk files + one combined analysis file
+7. **Condenses descriptions** - runs all chunks through Claude Code to remove redundancies in visual descriptions to considerably reduce final token count.
 
 **vlc_remote.py** bridges VLC and Claude Code for real-time "movie watching":
 
