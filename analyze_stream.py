@@ -973,28 +973,118 @@ def postprocess_with_claude(prefix):
         return True
 
     print(f"  Processing {len(chunk_files)} chunks...")
-    print(f"  Opening Claude Code window...")
 
     prompt = f"Please process all chunks for {prefix}, thank you!"
 
     cmd = [
         "claude",
-        "--model", "sonnet[1m]",
+        "--print",
+        "--output-format", "stream-json",
+        "--verbose",
         "--allowedTools", "Read,Write,Edit,Glob",
+        "--model", "sonnet[1m]",
         "--effort", "low",
-        prompt,
+        "-p", prompt,
     ]
 
+    timeout = 1800  # 30 minutes
+
     try:
-        subprocess.Popen(
+        process = subprocess.Popen(
             cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            encoding='utf-8',
+            errors='replace',
             cwd=str(POSTPROCESS_DIR),
-            creationflags=subprocess.CREATE_NEW_CONSOLE,
         )
-        print(f"  Claude Code launched. Pipeline complete.")
-        return True
+
+        # Read stream-json events line by line and print tool calls as they happen
+        stderr_lines = []
+        current_tool_name = None
+        current_tool_input = {}
+        current_tool_input_str = ""
+
+        def _read_stderr():
+            for line in process.stderr:
+                stderr_lines.append(line)
+
+        stderr_thread = Thread(target=_read_stderr, daemon=True)
+        stderr_thread.start()
+
+        start_time = time.time()
+
+        for line in process.stdout:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            etype = event.get("type")
+
+            # Tool call start — grab the tool name
+            if etype == "content_block_start":
+                block = event.get("content_block", {})
+                if block.get("type") == "tool_use":
+                    current_tool_name = block.get("name", "")
+                    current_tool_input_str = ""
+
+            # Tool call input arrives in deltas
+            elif etype == "content_block_delta":
+                delta = event.get("delta", {})
+                if delta.get("type") == "input_json_delta":
+                    current_tool_input_str += delta.get("partial_json", "")
+
+            # Tool call complete — parse input and print
+            elif etype == "content_block_stop" and current_tool_name:
+                elapsed = int(time.time() - start_time)
+                try:
+                    tool_input = json.loads(current_tool_input_str) if current_tool_input_str else {}
+                except json.JSONDecodeError:
+                    tool_input = {}
+
+                # Format the log line based on tool type
+                if current_tool_name == "Write":
+                    file_path = tool_input.get("file_path", "")
+                    filename = Path(file_path).name if file_path else "?"
+                    print(f"  [{elapsed}s] Write({filename})", flush=True)
+                elif current_tool_name == "Edit":
+                    file_path = tool_input.get("file_path", "")
+                    filename = Path(file_path).name if file_path else "?"
+                    print(f"  [{elapsed}s] Edit({filename})", flush=True)
+                elif current_tool_name == "Read":
+                    file_path = tool_input.get("file_path", "")
+                    filename = Path(file_path).name if file_path else "?"
+                    print(f"  [{elapsed}s] Read({filename})", flush=True)
+                elif current_tool_name not in ("Think",):
+                    # Log other tool calls by name only (skip Think to reduce noise)
+                    print(f"  [{elapsed}s] {current_tool_name}()", flush=True)
+
+                current_tool_name = None
+                current_tool_input_str = ""
+
+        process.wait(timeout=timeout)
+
+        if process.returncode == 0:
+            output_files = sorted(POSTPROCESS_DIR.glob(f"{prefix}.chunk*.txt"))
+            print(f"  Post-processing complete: {len(output_files)} files written")
+            return True
+        else:
+            print(f"  Claude exited with code {process.returncode}")
+            stderr_output = "".join(stderr_lines)
+            if stderr_output:
+                print(f"  stderr: {stderr_output[:500]}")
+            return False
+
+    except subprocess.TimeoutExpired:
+        process.kill()
+        print(f"  Claude timed out after {timeout}s")
+        return False
     except Exception as e:
-        print(f"  Failed to launch Claude Code: {e}")
+        print(f"  Post-processing failed: {e}")
         return False
 
 # ============================================================================
