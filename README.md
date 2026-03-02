@@ -4,15 +4,15 @@ All-in-one pipeline that converts video files into structured text descriptions 
 
 ## What It Does
 
-**analyze.py** runs a 6-step pipeline:
+**analyze.py** runs a 7-step pipeline:
 
 1. **Select video** from `Source/` — uses guessit to parse filenames into clean prefixes (e.g. `AKnightOfTheSevenKingdoms-s01e01`)
 2. **Extract/download subtitles** — embedded track extraction (prioritizes English SDH) > external SRT > auto-download via subliminal
 3. **Split video** into 30-second chunks at 720p, 2fps using NVENC hardware encoding (`-hwaccel cuda`, `-preset p7`, `-rc vbr`)
 4. **Process each chunk** through Qwen 397B via OpenRouter — sends video + matching subtitles, gets back ~200 word visual descriptions
 5. **Combine outputs** — merges subtitle chunks + descriptions into `[DIALOGUE]` + `[VISUAL DESCRIPTION]` sections
-6. **Generate results** — individual chunk files + one combined analysis file
-7. **Condenses descriptions** - runs all chunks through Claude Code to remove redundancies in visual descriptions to considerably reduce final token count.
+6. **Post-process with Claude Code** — launches `claude` in a new console to deduplicate and compress visual descriptions across chunks (see below)
+7. **Generate results** — individual chunk files + one combined analysis file
 
 **vlc_remote.py** bridges VLC and Claude Code for real-time "movie watching":
 
@@ -22,11 +22,24 @@ All-in-one pipeline that converts video files into structured text descriptions 
 
 Together: analyze.py builds the full text "memory" of a movie, vlc_remote.py lets you poke Claude at any moment during playback with a timestamp/screenshot, and Claude can answer with full context of what's happening.
 
+### Claude Code Post-Processing (Step 6)
+
+After Qwen generates raw descriptions, the pipeline spawns a headless [Claude Code](https://docs.anthropic.com/en/docs/claude-code) session to clean them up. It opens a new console window and runs against the `testoutputs/` directory, which contains a `CLAUDE.md` with deduplication instructions. Claude reads all chunk files in order, identifies scene boundaries, and rewrites each `[VISUAL DESCRIPTION]` to remove redundant setting/costume re-descriptions from consecutive chunks in the same scene.
+
+The invocation (in `postprocess_with_claude()`):
+
+```bash
+claude --model sonnet[1m] --allowedTools Read,Write,Edit,Glob,Bash --effort low "Please process all chunks for <prefix>, thank you!"
+```
+
+This step is optional — if `claude` isn't installed or `testoutputs/CLAUDE.md` is missing, the pipeline skips it and your raw results are still available in `results/`.
+
 ## Requirements
 
 - **Python 3.10+**
 - **ffmpeg** with NVENC support (NVIDIA GPU required for hardware encoding)
 - **OpenRouter API key** — set `OPENROUTER_API_KEY` env var or enter it on first run (saved to `.openrouter_key`)
+- **Claude Code** (optional) — for the post-processing deduplication step. [Install instructions](https://docs.anthropic.com/en/docs/claude-code)
 
 ### Python Dependencies
 
@@ -87,6 +100,26 @@ All configuration is at the top of the file:
 
 - **slice.py** — standalone video slicer (superseded by analyze.py's built-in splitting)
 - **test_clip.py** — single-clip tester for debugging OpenRouter API calls
+
+## Forking / Running Locally
+
+This was built for a specific home setup. If you're forking, here's what you'll need to change:
+
+**analyze.py** — should work out of the box *if* you have an NVIDIA GPU. The NVENC encoder (`h264_nvenc`, `-hwaccel cuda`) requires one. If you don't have an NVIDIA card, swap the ffmpeg command in `split_video()` to use CPU encoding instead (e.g. `-c:v libx264`).
+
+**vlc_remote.py** — Windows-only (uses `ctypes`, `win32clipboard`, `SendInput`). You'll need to change the hardcoded network values at the top of the file:
+
+| Variable | What to change |
+|----------|---------------|
+| `VLC_URL` | Replace `192.168.1.150` with your VLC machine's IP (or `127.0.0.1` if local) |
+| `SNAPSHOT_DIR` | Replace `\\HTPC\vlcpic` with wherever your VLC saves snapshots |
+
+**testoutputs/CLAUDE.md** — contains hardcoded absolute paths for the Claude Code post-processor. Update these two lines to match your clone location:
+
+```
+Source files: C:\Users\Hans\vidtest\results        -> your path to results/
+Output folder location: C:\Users\Hans\vidtest\testoutputs  -> your path to testoutputs/
+```
 
 ## Cost
 

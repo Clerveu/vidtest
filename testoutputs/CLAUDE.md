@@ -108,3 +108,12 @@ The pipeline will tell you which chunk files to process and where to write outpu
 - Do NOT remove information that is genuinely new, even if the chunk is otherwise redundant
 - When in doubt, keep the detail — false economy is worse than mild redundancy
 - Credits/title sequences can be condensed aggressively — just note what's shown
+
+## Execution Method
+
+**Do NOT dispatch a subagent (Task tool) to process chunks.** This task must be executed directly in the main conversation session because:
+- The CLAUDE.md project instructions are only loaded in the main session — a subagent will not have them
+- Scene-continuity tracking requires a single consistent context across all chunks
+- Subagent dispatch wastes ~150k tokens of overhead with no benefit
+
+Instead, use the Read tool to read chunks in parallel batches (e.g., 10 files at a time in a single message), then write outputs with the Write tool, batch by batch. Do not use Bash to concatenate all files at once — large outputs will be truncated.

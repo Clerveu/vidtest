@@ -980,7 +980,7 @@ def postprocess_with_claude(prefix):
     cmd = [
         "claude",
         "--model", "sonnet[1m]",
-        "--allowedTools", "Read,Write,Edit,Glob",
+        "--allowedTools", "Read,Write,Edit,Glob,Bash",
         "--effort", "low",
         prompt,
     ]
