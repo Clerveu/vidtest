@@ -1,0 +1,9 @@
+# Main pipeline (analyze_speak.py)
+requests
+
+# Optional: smart filename -> prefix parsing (falls back to a simple slug if absent)
+guessit
+
+# NOTE: WhisperX / pyannote diarization runs in a SEPARATE virtualenv at
+# subtest/venv (see subtest/requirements.txt). Keeping it isolated avoids
+# torch/pyannote dependency conflicts with the main environment.

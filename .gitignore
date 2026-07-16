@@ -1,0 +1,36 @@
+# API keys / secrets
+.openrouter_key
+
+# Generated pipeline data
+Source/
+Outputs/
+audio/
+subtitles/
+descriptions/
+results/
+
+# Post-processed chunks (generated) — keep only the instruction file
+testoutputs/*.txt
+!testoutputs/CLAUDE.md
+
+# Diarization venv + scratch/test artifacts
+subtest/venv/
+subtest/*.wav
+subtest/*_output.txt
+subtest/test_*.py
+subtest/chunk_output.py
+subtest/CLAUDE.md
+
+# Debug/temp
+last_response.json
+temp_subtitles.srt
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE / tooling
+.vscode/
+.idea/
+.claude/

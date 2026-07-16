@@ -1,0 +1,10 @@
+# Diarization worker environment (subtest/diarize_worker.py)
+# Install into an isolated venv:  subtest/venv
+#
+#   python -m venv subtest/venv
+#   subtest/venv/Scripts/python -m pip install -r subtest/requirements.txt
+#
+# whisperx pulls in torch, faster-whisper, and pyannote.audio. For CUDA you
+# generally want a GPU build of torch matching your CUDA toolkit; install that
+# first from https://pytorch.org if the default wheel is CPU-only.
+whisperx
